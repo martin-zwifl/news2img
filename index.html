@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            .loader {
+                border: 16px solid #f3f3f3;
+                border-top: 16px solid #3498db;
+                border-radius: 50%;
+                width: 120px;
+                height: 120px;
+                padding: 5px 5px;
+                animation: spin 2s linear infinite;
+            }
+            .mixedDiv {
+                display:inline-block;
+                position:relative;
+            }
+            .summaryButton {
+                position:absolute;
+                bottom:0px;
+                left:0px;
+                background-color: #4CAF50;
+                border: none;
+                color: white;
+                padding: 5px 5px;
+                text-align: center;
+                text-decoration: none;
+                display: inline-block;
+                font-size: 16px;
+            }
+            .summaryButton:hover {
+                background-color:#002ead;
+                transition: 0.7s;
+            }
+            .summaryButton:disabled, summaryButton[disabled] {
+                border: 1px solid #999999;
+                background-color: #cccccc;
+                color: #666666;
+            }
+            .convertButton {
+                position:absolute;
+                bottom:0px;
+                left:100px;
+                background-color: #4CAF50;
+                border: none;
+                color: white;
+                padding: 5px 5px;
+                text-align: center;
+                text-decoration: none;
+                display: inline-block;
+                font-size: 16px;
+            }
+            .convertButton:hover {
+                background-color:#002ead;
+                transition: 0.7s;
+            }
+            textarea{
+                display:block;
+            }
+            .progress{
+                position: relative;
+                height: 5px;
+                width: 250px;
+                border: 2px solid rgb(118, 118, 118);
+                border-radius: 15px;
+            }
+            .progress .color{
+                position: absolute;
+                background-color: #4CAF50;
+                width: 0px;
+                height: 5px;
+                border-radius: 15px;
+                /* animation: progres 4s infinite linear; */ /* <- this was parameterised and therefore removed from here*/
+            }
+            .progress .progressTextUpper{
+                position: absolute;
+                left:0px;
+                bottom:-5px;
+                color: rgb(118, 118, 118);
+                font-size: 14px;
+            }
+            .progress .progressTextLower{
+                position: absolute;
+                left:0px;
+                bottom:-35px;
+                color: rgb(118, 118, 118);
+                font-size: 14px;
+            }
+            @keyframes progres{
+                0%{ width: 0%; }
+                100%{ width: 100%; }
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+    </head>
+
+    <body>
+        <h1>News to Image Generator</h1>
+
+        Random top article from New York Times
+        <form id="form0">
+            <button id="artsButton">Arts</button>
+            <button id="homeButton">Home</button>
+            <button id="scienceButton">Science</button>
+            <button id="usButton">US</button>
+            <button id="worldButton">World</button>
+            <br><br>
+            <div class="mixedDiv">
+                <textarea id="itext" name="stringtext" rows="8" cols="40">panda driving uber</textarea>
+                <button class="summaryButton" id="summarise">Summarise</button>
+                <button class="convertButton" id="convertButton">Visualise</button>
+            </div><br>
+            or enter your own text, <a href="https://huggingface.co/pszemraj/long-t5-tglobal-base-16384-book-summary">Summarise</a> and <a href="https://huggingface.co/runwayml/stable-diffusion-v1-5">Visualise</a><br><br><br>
+        </form>
+
+        <script>
+            window.onload = setButtonStateSummarise;
+
+            summariseButton = document.getElementById("summarise")
+            summariseButton.addEventListener("click", summarise, false);
+
+            document.getElementById("convertButton").addEventListener("click", mainOwnText, false);
+
+            document.getElementById("artsButton").addEventListener("click", main, false);
+            document.getElementById("artsButton").category = "arts";
+
+            document.getElementById("homeButton").addEventListener("click", main, false);
+            document.getElementById("homeButton").category = "home";
+
+            document.getElementById("scienceButton").addEventListener("click", main, false);
+            document.getElementById("scienceButton").category = "science";
+
+            document.getElementById("usButton").addEventListener("click", main, false);
+            document.getElementById("usButton").category = "us";
+
+            document.getElementById("worldButton").addEventListener("click", main, false);
+            document.getElementById("worldButton").category = "world";
+
+            inputField = document.getElementById("itext")
+            inputField.addEventListener('input', setButtonStateSummarise, false);
+
+
+            function setTextFieldValue(value) {
+                inputField.value = value;
+                setButtonStateSummarise;
+            }
+
+            function setButtonStateSummarise() {
+                let minLength = 300;
+                if (inputField.value.length >= minLength) {
+                    summariseButton.disabled = false;
+                    summariseButton.title=""
+                } else {
+                    summariseButton.disabled = true;
+                    summariseButton.title=`Text too short for summarisation model (${minLength-inputField.value.length}/${minLength})`
+                }
+            }
+
+            function displayImage(image_base64) {
+                console.log("showimg");
+                img = document.createElement('img');
+                img.src = image_base64;
+
+                removeTmpId();
+                
+                // add new image with header
+                const div = document.createElement('div');
+                div.innerHTML += 'For image generation a <a href="https://huggingface.co/runwayml/stable-diffusion-v1-5">Stable Diffusion Model</a> hosted via <a href="https://huggingface.co/">Hugging Face</a> was used<br>';
+                div.appendChild(img);
+                g = document.body.appendChild(div);
+                g.setAttribute("id", "tmp");
+            }
+
+            async function Text2Img(abstract) {
+                var myHeaders = new Headers();
+                myHeaders.append("Content-Type", "application/json");
+
+                var requestOptions = {
+                method: 'POST',
+                headers: myHeaders,
+                body: JSON.stringify({data: [abstract]})
+                };
+                
+                await fetch("https://mike722-runwayml-stable-diffusion-v1-5.hf.space/run/predict", requestOptions)
+                .then(r => r.json())
+                .then(
+                r => {
+                    if (r.hasOwnProperty("error")){
+                        removeTmpId();
+                        alert("Error converting text to image - hit the 'Convert' button to try again");
+                    } else if (r.hasOwnProperty("data")){
+                        let data = r.data;
+                        displayImage(data);
+                    }
+                    
+                })
+                .catch(error => {
+                    console.log('error', error);
+                    removeTmpId();
+                    alert("Error converting text to image - hit the 'Convert' button to try again");
+                    });
+            }
+
+            async function TopNews2Img(category) {
+
+                const nytApiKey = "oOY58pm2uUqnrjLYzbascKrLh7slADVG";
+
+                var requestOptions = {
+                method: 'GET'
+                };
+                await fetch(`https://api.nytimes.com/svc/topstories/v2/${category}.json?api-key=${nytApiKey}`, requestOptions)
+                .then(r => r.json())
+                .then(r => {
+                    let status = r.status;
+                    console.log("Status of NYT Api call: " + status);
+                    if (status == "OK") {
+                        let n_Articles = r.num_results;
+                        console.log("Fetched " + n_Articles + " articles from NYTs category " + category);
+                        let results = r.results;
+                        let rndIdx = Math.floor(Math.random() * n_Articles);
+                        console.log("Randomly selected Index " + rndIdx);
+                        let article = results[rndIdx];
+                        let abstract = article.abstract;
+                        setTextFieldValue(abstract);
+                        Text2Img(abstract);
+                    } else {
+                        removeTmpId();
+                        alert("Error fetching NYT articles - please try again later");
+                    }
+                })
+                .catch(error => {
+                        console.log('error', error);
+                        removeTmpId();
+                        alert("Error fetching NYT articles - please try again later");
+                        });
+            }
+
+            function apiUrlToSource(url) {
+                let subpart1 = "https://huggingface.co";
+                let removePart = "https://api-inference.huggingface.co/models";
+                let subpart2 = text.slice(removePart.length, -1);
+                return subpart1+subpart2
+            }
+
+            async function summarise(event) {
+                event.preventDefault();
+                removeTmpId();
+                showGeneralLoadingIndicator();
+                let inputText = inputField.value
+                var requestOptions = {
+                method: 'POST',
+                headers: { Authorization: "Bearer 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" },
+                body: JSON.stringify({"inputs": inputText})
+                };
+
+                //url = "https://api-inference.huggingface.co/models/csebuetnlp/mT5_multilingual_XLSum"
+                //url = "https://api-inference.huggingface.co/models/philschmid/bart-large-cnn-samsum"
+                //url = "https://api-inference.huggingface.co/models/sshleifer/distilbart-cnn-12-6"
+                //url = "https://api-inference.huggingface.co/models/sshleifer/distilbart-xsum-12-3"
+                //url = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn";
+                //url = "https://api-inference.huggingface.co/models/plguillou/t5-base-fr-sum-cnndm"
+                url = "https://api-inference.huggingface.co/models/pszemraj/long-t5-tglobal-base-16384-book-summary"
+                
+                const response = await fetch(url, requestOptions)
+                const result = await response.json();
+
+                if (Array.isArray(result)){
+                    if (result[0].hasOwnProperty("summary_text")) {
+                        let sumText = result[0].summary_text;
+                        console.log(sumText);
+                        setTextFieldValue(sumText);
+                        removeTmpId();
+                    }
+                }
+                else if (result.hasOwnProperty("estimated_time")) {
+                    let estimated_time = result.estimated_time;
+                    console.log(estimated_time);
+                    removeTmpId();
+                    showModelLoadingIndicator("summarisation", estimated_time);
+                } else {
+                    console.log(result);
+                    removeTmpId();
+                }
+            }
+
+            function removeTmpId() {
+                // if element from last session is still there, remove it
+                if (document.getElementById("tmp") !== null) {
+                    document.getElementById("tmp").remove();
+                }
+            }
+
+            function showGeneralLoadingIndicator(){
+                removeTmpId();
+                const loadingInd = document.createElement('div');
+                loadingInd.classList.add("loader");
+                g = document.body.appendChild(loadingInd);
+                g.setAttribute("id", "tmp");
+            }
+
+            function showModelLoadingIndicator(modelName, time){
+                const container = document.createElement('div');
+                container.classList.add("progress");
+                
+                const p1 = document.createElement('p');
+                p1.classList.add("progressTextUpper");
+                p1.innerHTML += `Loading ${modelName} model... (~${Math.round(time)}s)`
+                container.appendChild(p1);
+
+                const innerdiv = document.createElement('div');
+                innerdiv.style.animation = `progres ${time}s linear forwards`;
+                innerdiv.classList.add("color");
+                container.appendChild(innerdiv);
+
+                const p2 = document.createElement('p');
+                p2.classList.add("progressTextLower");
+                p2.innerHTML += `Please retry afterwards`
+                container.appendChild(p2);
+
+                g = document.body.appendChild(container);
+                g.setAttribute("id", "tmp");
+            }
+
+            function mainOwnText(event) {
+                event.preventDefault() // prevents immediate reload of page
+                showGeneralLoadingIndicator();
+                const inputText = inputField.value;
+                Text2Img(inputText);
+            }
+
+            function main(event) {
+                setTextFieldValue("");
+                showGeneralLoadingIndicator();
+                event.preventDefault() // prevents immediate reload of page
+                TopNews2Img(event.currentTarget.category);
+            }
+        </script>
+    </body>
+</html>
